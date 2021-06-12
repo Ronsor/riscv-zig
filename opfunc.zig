@@ -5,11 +5,11 @@ const decoder = @import("decoder.zig");
 const CPU = @import("cpu.zig").CPU;
 const Instruction = decoder.Instruction;
 
-pub const OpFuncError = error {
+pub const OpFuncError = error{
     Unimplemented,
 };
 
-pub const OpFunc = fn(cpu: *CPU, inst: []Instruction, cur: usize) anyerror!void;
+pub const OpFunc = fn (cpu: *CPU, inst: []Instruction, cur: usize) anyerror!void;
 
 /// Execute next instruction.
 pub inline fn next(cpu: *CPU, inst: []Instruction, oldcur: usize) !void {
@@ -19,7 +19,7 @@ pub inline fn next(cpu: *CPU, inst: []Instruction, oldcur: usize) !void {
 
     if (cpu.cache.exec_counter > cpu.cache.max_exec) return;
     if (cur == cpu.cache.inst.?.len) return;
-    return @call(.{}, cpu.cache.funcs.?[cur], .{cpu, inst, cur});
+    return @call(.{}, cpu.cache.funcs.?[cur], .{ cpu, inst, cur });
 }
 
 /// Attempt to "goto" cached instruction, otherwise return as usual.
@@ -393,7 +393,7 @@ pub fn remu(cpu: *CPU, inst: []Instruction, cur: usize) !void {
 
 /// Get the function corresponding to an instruction.
 pub fn fromInstruction(inst: Instruction) !OpFunc {
-    return switch(inst) {
+    return switch (inst) {
         .add => add,
         .sub => sub,
         .xor => xor,

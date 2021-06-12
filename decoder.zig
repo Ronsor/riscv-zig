@@ -1,9 +1,7 @@
 // (C) 2021 Ronsor Labs.
 const tup = @import("util.zig").tuplicate;
 
-pub const DecoderError = error {
-    IllegalOpcode
-};
+pub const DecoderError = error{IllegalOpcode};
 
 pub const RType = struct {
     rs2: u5,
@@ -11,7 +9,7 @@ pub const RType = struct {
     rd: u5,
 
     pub fn decode(raw: u32) RType {
-        return .{.rs2 = @intCast(u5, (raw >> 20) & 0x1f), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rd = @intCast(u5, (raw >> 7) & 0x1f)};
+        return .{ .rs2 = @intCast(u5, (raw >> 20) & 0x1f), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rd = @intCast(u5, (raw >> 7) & 0x1f) };
     }
 };
 
@@ -21,7 +19,7 @@ pub const IType = struct {
     rd: u5,
 
     pub fn decode(raw: u32) IType {
-        return .{.imm = @intCast(u12, (raw >> 20)), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rd = @intCast(u5, (raw >> 7) & 0x1f)};
+        return .{ .imm = @intCast(u12, (raw >> 20)), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rd = @intCast(u5, (raw >> 7) & 0x1f) };
     }
 
     pub inline fn immSigned(self: IType) i12 {
@@ -35,7 +33,7 @@ pub const SType = struct {
     rs2: u5,
 
     pub fn decode(raw: u32) SType {
-        return .{.imm = @intCast(u12, ((raw >> 20) & 0xfe0) | ((raw >> 7) & 0x1f)), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rs2 = @intCast(u5, (raw >> 20) & 0x1f)};
+        return .{ .imm = @intCast(u12, ((raw >> 20) & 0xfe0) | ((raw >> 7) & 0x1f)), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rs2 = @intCast(u5, (raw >> 20) & 0x1f) };
     }
 
     pub inline fn immSigned(self: SType) i12 {
@@ -51,7 +49,7 @@ pub const BType = struct {
     pub fn decode(raw: u32) BType {
         return .{
             .imm = @intCast(u12, ((raw & 0x8000_0000) >> 19) | ((raw & 0x7e00_0000) >> 20) |
-                   ((raw & 0x0000_0f00) >> 7) | ((raw & 0x0000_0080) << 4)),
+                ((raw & 0x0000_0f00) >> 7) | ((raw & 0x0000_0080) << 4)),
             .rs1 = @intCast(u5, (raw >> 15) & 0x1f),
             .rs2 = @intCast(u5, (raw >> 20) & 0x1f),
         };
@@ -65,7 +63,7 @@ pub const JType = struct {
     pub fn decode(raw: u32) JType {
         return .{
             .imm = @intCast(u20, ((raw & 0x8000_0000) >> 11) | ((raw & 0x7fe0_0000) >> 20) |
-                   ((raw & 0x0010_0000) >> 9) | (raw & 0x000f_f000)),
+                ((raw & 0x0010_0000) >> 9) | (raw & 0x000f_f000)),
             .rd = @intCast(u5, (raw >> 7) & 0x1f),
         };
     }
@@ -76,7 +74,7 @@ pub const UType = struct {
     rd: u5,
 
     pub fn decode(raw: u32) UType {
-        return .{.imm = raw & 0xfffff000, .rd = @intCast(u5, (raw >> 7) & 0x1f)};
+        return .{ .imm = raw & 0xfffff000, .rd = @intCast(u5, (raw >> 7) & 0x1f) };
     }
 };
 
@@ -86,7 +84,7 @@ pub const ShiftType = struct {
     rd: u5,
 
     pub fn decode(raw: u32) ShiftType {
-        return .{.shamt = @intCast(u6, (raw >> 20) & 0x3f), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rd = @intCast(u5, (raw >> 7) & 0x1f)};
+        return .{ .shamt = @intCast(u6, (raw >> 20) & 0x3f), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rd = @intCast(u5, (raw >> 7) & 0x1f) };
     }
 };
 
@@ -283,13 +281,11 @@ pub const Instruction = union(enum(u8)) {
         return switch (funct3) {
             0b000 => init(.addiw, IType.decode(raw)),
             else => switch (funct7and3) {
-                 tup(0b0000000, 0b001) => init(.slliw, ShiftType.decode(raw)),
-                 tup(0b0000000, 0b101) => init(.srliw, ShiftType.decode(raw)),
-                 tup(0b0100000, 0b101) => init(.sraiw, ShiftType.decode(raw)),
-                 else => DecoderError.IllegalOpcode,
-            }
+                tup(0b0000000, 0b001) => init(.slliw, ShiftType.decode(raw)),
+                tup(0b0000000, 0b101) => init(.srliw, ShiftType.decode(raw)),
+                tup(0b0100000, 0b101) => init(.sraiw, ShiftType.decode(raw)),
+                else => DecoderError.IllegalOpcode,
+            },
         };
     }
-
 };
-

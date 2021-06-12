@@ -6,7 +6,7 @@ const opfunc = @import("opfunc.zig");
 
 pub const debug = false;
 
-pub const CPUError = error {
+pub const CPUError = error{
     OutOfBoundsAccess,
     IllegalOpcode,
 };
@@ -15,9 +15,9 @@ pub const CPUConfig = struct {
     // Abstract pointer to data that the memRead/memWrite functions may use
     memCookie: ?*c_void = null,
     // Reads buf.length bytes of memory
-    memRead: ?fn(config: *CPUConfig, addr: CPU.XLEN, buf: []u8) anyerror!void = null,
+    memRead: ?fn (config: *CPUConfig, addr: CPU.XLEN, buf: []u8) anyerror!void = null,
     // Writes buf.length bytes of memory
-    memWrite: ?fn(config: *CPUConfig, addr: CPU.XLEN, buf: []u8) anyerror!void = null,
+    memWrite: ?fn (config: *CPUConfig, addr: CPU.XLEN, buf: []u8) anyerror!void = null,
 };
 
 fn simpleMemRead(config: *CPUConfig, addr: CPU.XLEN, buf: []u8) !void {
@@ -25,7 +25,7 @@ fn simpleMemRead(config: *CPUConfig, addr: CPU.XLEN, buf: []u8) !void {
     const off = @intCast(usize, addr);
     const size = buf.len;
     if (off + size > slice.len) return CPUError.OutOfBoundsAccess;
-    std.mem.copy(u8, buf, slice[off..off+size]);
+    std.mem.copy(u8, buf, slice[off .. off + size]);
 }
 
 fn simpleMemWrite(config: *CPUConfig, addr: CPU.XLEN, buf: []u8) !void {
@@ -33,7 +33,7 @@ fn simpleMemWrite(config: *CPUConfig, addr: CPU.XLEN, buf: []u8) !void {
     const off = @intCast(usize, addr);
     const size = buf.len;
     if (off + size > slice.len) return CPUError.OutOfBoundsAccess;
-    std.mem.copy(u8, slice[off..off+size], buf);
+    std.mem.copy(u8, slice[off .. off + size], buf);
 }
 
 /// Enable simple memory I/O functions backed by a []u8
@@ -91,11 +91,11 @@ pub const CPU = struct {
 
     /// Dump the CPU state.
     pub fn dump(self: *CPU) void {
-        std.debug.print("PC={}\n", .{ self.pc });
+        std.debug.print("PC={}\n", .{self.pc});
         var instr: u32 = self.getMem(self.pc, u32, .fetch_instruction) catch 0;
-        std.debug.print("> {x:08}\n", .{ instr });
+        std.debug.print("> {x:08}\n", .{instr});
         for (self.registers[0..]) |val, i| {
-            std.debug.print("reg: x{} = {}\n", .{i, val});
+            std.debug.print("reg: x{} = {}\n", .{ i, val });
         }
     }
 
@@ -155,12 +155,21 @@ pub const CPU = struct {
         var i: usize = 0;
         var failed: anyerror = undefined;
         while (i < max) {
-            var rawInst = self.getMem(self.pc +% @intCast(XLEN, i) * 4, u32, .fetch_instruction) catch |err| { failed = err; break; };
-            self.cache.inst.?[i] = decoder.Instruction.decode32(rawInst) catch |err| { failed = err; break; };
+            var rawInst = self.getMem(self.pc +% @intCast(XLEN, i) * 4, u32, .fetch_instruction) catch |err| {
+                failed = err;
+                break;
+            };
+            self.cache.inst.?[i] = decoder.Instruction.decode32(rawInst) catch |err| {
+                failed = err;
+                break;
+            };
 
             //if (debug) std.debug.print("execute: decoded and 'compiled' {}\n", .{self.cache.inst.?[i]});
 
-            self.cache.funcs.?[i] = opfunc.fromInstruction(self.cache.inst.?[i]) catch |err| { failed = err; break; };
+            self.cache.funcs.?[i] = opfunc.fromInstruction(self.cache.inst.?[i]) catch |err| {
+                failed = err;
+                break;
+            };
             i += 1;
         }
         // Couldn't decode any instructions? That's an error
@@ -179,50 +188,50 @@ pub const CPU = struct {
 const expect = std.testing.expect;
 
 test "asm.simple" {
-     var memory = std.mem.zeroes([4096]u8);
-     var memSlice: []u8 = memory[0..];
-     std.mem.copy(u8, memSlice, @embedFile("test/asm/simple.bin"));
+    var memory = std.mem.zeroes([4096]u8);
+    var memSlice: []u8 = memory[0..];
+    std.mem.copy(u8, memSlice, @embedFile("test/asm/simple.bin"));
 
-     // Configure CPU to use memory provided by memSlice
-     var conf: CPUConfig = undefined;
-     useSimpleMemIO(&conf, &memSlice);
+    // Configure CPU to use memory provided by memSlice
+    var conf: CPUConfig = undefined;
+    useSimpleMemIO(&conf, &memSlice);
 
-     var cpu = CPU.init(std.testing.allocator, conf);
-     // Execute 32 instructions
-     _ = try cpu.execute(32);
+    var cpu = CPU.init(std.testing.allocator, conf);
+    // Execute 32 instructions
+    _ = try cpu.execute(32);
 
-     expect(cpu.getReg(10) == 1);
+    try expect(cpu.getReg(10) == 1);
 }
 
 test "c.test1" {
-     var memory = std.mem.zeroes([4096]u8);
-     var memSlice: []u8 = memory[0..];
-     std.mem.copy(u8, memSlice, @embedFile("test/c/test1.bin"));
+    var memory = std.mem.zeroes([4096]u8);
+    var memSlice: []u8 = memory[0..];
+    std.mem.copy(u8, memSlice, @embedFile("test/c/test1.bin"));
 
-     var conf: CPUConfig = undefined;
-     useSimpleMemIO(&conf, &memSlice);
+    var conf: CPUConfig = undefined;
+    useSimpleMemIO(&conf, &memSlice);
 
-     var cpu = CPU.init(std.testing.allocator, conf);
-     // Set up stack pointer
-     cpu.setReg(2, 4096);
+    var cpu = CPU.init(std.testing.allocator, conf);
+    // Set up stack pointer
+    cpu.setReg(2, 4096);
 
-     _ = try cpu.execute(32);
+    _ = try cpu.execute(32);
 
-     expect(cpu.getReg(10) == 13);
+    try expect(cpu.getReg(10) == 13);
 }
 
 test "c.test2" {
-     var memory = std.mem.zeroes([4096]u8);
-     var memSlice: []u8 = memory[0..];
-     std.mem.copy(u8, memSlice, @embedFile("test/c/test2.bin"));
+    var memory = std.mem.zeroes([4096]u8);
+    var memSlice: []u8 = memory[0..];
+    std.mem.copy(u8, memSlice, @embedFile("test/c/test2.bin"));
 
-     var conf: CPUConfig = undefined;
-     useSimpleMemIO(&conf, &memSlice);
+    var conf: CPUConfig = undefined;
+    useSimpleMemIO(&conf, &memSlice);
 
-     var cpu = CPU.init(std.testing.allocator, conf);
-     cpu.setReg(2, 4096);
+    var cpu = CPU.init(std.testing.allocator, conf);
+    cpu.setReg(2, 4096);
 
-     _ = try cpu.execute(64);
+    _ = try cpu.execute(64);
 
-     expect(cpu.getReg(10) == 54);
+    try expect(cpu.getReg(10) == 54);
 }
