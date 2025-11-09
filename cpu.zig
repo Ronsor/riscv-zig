@@ -1,7 +1,7 @@
 // (C) 2021 Ronsor Labs.
 
 const std = @import("std");
-const decoder = @import("decoder.zig");
+pub const decoder = @import("decoder.zig");
 const opfunc = @import("opfunc.zig");
 
 pub const debug = false;
@@ -13,7 +13,7 @@ pub const CPUError = error{
 
 pub const CPUConfig = struct {
     // Abstract pointer to data that the memRead/memWrite functions may use
-    memCookie: ?*c_void = null,
+    memCookie: ?*void = null,
     // Reads buf.length bytes of memory
     memRead: ?fn (config: *CPUConfig, addr: CPU.XLEN, buf: []u8) anyerror!void = null,
     // Writes buf.length bytes of memory
@@ -21,16 +21,16 @@ pub const CPUConfig = struct {
 };
 
 fn simpleMemRead(config: *CPUConfig, addr: CPU.XLEN, buf: []u8) !void {
-    const slice = @ptrCast(*[]u8, @alignCast(@alignOf(*[]u8), config.memCookie.?)).*;
-    const off = @intCast(usize, addr);
+    const slice = @as(*[]u8, @alignCast(config.memCookie.?)).*;
+    const off = @as(usize, @intCast(addr));
     const size = buf.len;
     if (off + size > slice.len) return CPUError.OutOfBoundsAccess;
     std.mem.copy(u8, buf, slice[off .. off + size]);
 }
 
 fn simpleMemWrite(config: *CPUConfig, addr: CPU.XLEN, buf: []u8) !void {
-    const slice = @ptrCast(*[]u8, @alignCast(@alignOf(*[]u8), config.memCookie.?)).*;
-    const off = @intCast(usize, addr);
+    const slice = @as(*[]u8, @alignCast(config.memCookie.?)).*;
+    const off = @as(usize, @intCast(addr));
     const size = buf.len;
     if (off + size > slice.len) return CPUError.OutOfBoundsAccess;
     std.mem.copy(u8, slice[off .. off + size], buf);
@@ -38,7 +38,7 @@ fn simpleMemWrite(config: *CPUConfig, addr: CPU.XLEN, buf: []u8) !void {
 
 /// Enable simple memory I/O functions backed by a []u8
 pub fn useSimpleMemIO(config: *CPUConfig, memory: *[]u8) void {
-    config.memCookie = @ptrCast(*c_void, memory);
+    config.memCookie = @ptrCast(memory);
     config.memRead = simpleMemRead;
     config.memWrite = simpleMemWrite;
 }
@@ -67,7 +67,7 @@ pub const CPU = struct {
         // Before anyone complains about the name, this is the standard abbreviation.
         /// Sign extension.
         pub inline fn sext(in: anytype) XLEN {
-            return @bitCast(XLEN, @intCast(SXLEN, @bitCast(std.meta.Int(.signed, @bitSizeOf(@TypeOf(in))), in)));
+            return @bitCast(@as(SXLEN, @intCast(@as(std.meta.Int(.signed, @bitSizeOf(@TypeOf(in))), @bitCast(in)))));
         }
     };
 
@@ -92,28 +92,30 @@ pub const CPU = struct {
     /// Dump the CPU state.
     pub fn dump(self: *CPU) void {
         std.debug.print("PC={}\n", .{self.pc});
-        var instr: u32 = self.getMem(self.pc, u32, .fetch_instruction) catch 0;
+        const instr: u32 = self.getMem(self.pc, u32, .fetch_instruction) catch 0;
         std.debug.print("> {x:08}\n", .{instr});
-        for (self.registers[0..]) |val, i| {
+        var i: u32 = 0;
+        for (self.registers[0..]) |val| {
             std.debug.print("reg: x{} = {}\n", .{ i, val });
+            i += 1;
         }
     }
 
     /// Set the value of a register.
     pub inline fn setReg(self: *CPU, reg: u5, val: XLEN) void {
-        if (reg != 0) self.registers[@intCast(usize, reg)] = val;
+        if (reg != 0) self.registers[@intCast(reg)] = val;
     }
 
     /// Get the value of a register.
     /// Per specification, x0 is always 0.
     pub inline fn getReg(self: *CPU, reg: u5) XLEN {
         if (reg == 0) return 0;
-        return self.registers[@intCast(usize, reg)];
+        return self.registers[@intCast(reg)];
     }
 
     /// Same as getReg(), but returns a signed integer
     pub inline fn getRegSigned(self: *CPU, reg: u5) SXLEN {
-        return @bitCast(SXLEN, self.getReg(reg));
+        return @bitCast(self.getReg(reg));
     }
 
     /// Store *val*, a *size* integer, in the CPU's configured memory.
@@ -121,7 +123,7 @@ pub const CPU = struct {
     pub inline fn setMem(self: *CPU, addr: XLEN, val: anytype) !void {
         // TODO: handle endians
         var t: @TypeOf(val) = val;
-        var b = @ptrCast(*[@sizeOf(@TypeOf(val))]u8, &t);
+        var b = @as(*[@sizeOf(@TypeOf(val))]u8, @ptrCast(&t));
         try self.config.memWrite.?(&self.config, addr, b[0..]);
     }
 
@@ -130,7 +132,8 @@ pub const CPU = struct {
     pub inline fn getMem(self: *CPU, addr: u64, comptime size: type, flags: anytype) !size {
         var b: [@sizeOf(size)]u8 = undefined;
         try self.config.memRead.?(&self.config, addr, b[0..]);
-        return @bitCast(size, switch (size) {
+        _ = flags;
+        return @bitCast(switch (size) {
             u8, i8 => b[0],
             u16, i16 => b,
             u32, i32 => b,
@@ -155,7 +158,7 @@ pub const CPU = struct {
         var i: usize = 0;
         var failed: anyerror = undefined;
         while (i < max) {
-            var rawInst = self.getMem(self.pc +% @intCast(XLEN, i) * 4, u32, .fetch_instruction) catch |err| {
+            const rawInst = self.getMem(self.pc +% @as(XLEN, @intCast(i)) * 4, u32, .fetch_instruction) catch |err| {
                 failed = err;
                 break;
             };
@@ -174,7 +177,7 @@ pub const CPU = struct {
         }
         // Couldn't decode any instructions? That's an error
         if (i == 0) return failed;
-        self.cache.max_pc = self.cache.base_pc + @intCast(u64, i) * 4;
+        self.cache.max_pc = self.cache.base_pc + @as(u64, @intCast(i)) * 4;
 
         self.cache.max_exec = max;
         self.cache.exec_counter = 0;

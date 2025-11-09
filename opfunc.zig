@@ -13,7 +13,7 @@ pub const OpFunc = fn (cpu: *CPU, inst: []Instruction, cur: usize) anyerror!void
 
 /// Execute next instruction.
 pub inline fn next(cpu: *CPU, inst: []Instruction, oldcur: usize) !void {
-    var cur = oldcur +% 1;
+    const cur = oldcur +% 1;
     cpu.pc +%= 4;
     cpu.cache.exec_counter += 1;
 
@@ -24,10 +24,11 @@ pub inline fn next(cpu: *CPU, inst: []Instruction, oldcur: usize) !void {
 
 /// Attempt to "goto" cached instruction, otherwise return as usual.
 pub inline fn goto(cpu: *CPU, inst: []Instruction, oldcur: usize, newpc: CPU.XLEN) !void {
+    _ = oldcur;
     // TODO: support compressed instructions
     if (newpc >= cpu.cache.base_pc and newpc < cpu.cache.max_pc and (newpc % 4) == 0) {
         cpu.pc = newpc -% 4;
-        return next(cpu, inst, @truncate(usize, (newpc - cpu.cache.base_pc) / 4) -% 1);
+        return next(cpu, inst, @as(usize, @truncate((newpc - cpu.cache.base_pc) / 4)) -% 1);
     }
 
     cpu.pc = newpc;
@@ -69,19 +70,19 @@ pub fn @"and"(cpu: *CPU, inst: []Instruction, cur: usize) !void {
 
 pub fn sll(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].sll;
-    cpu.setReg(params.rd, cpu.getReg(params.rs1) << @truncate(u6, cpu.getReg(params.rs2)));
+    cpu.setReg(params.rd, cpu.getReg(params.rs1) << @as(u6, @truncate(cpu.getReg(params.rs2))));
     return next(cpu, inst, cur);
 }
 
 pub fn srl(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].srl;
-    cpu.setReg(params.rd, cpu.getReg(params.rs1) >> @truncate(u6, cpu.getReg(params.rs2)));
+    cpu.setReg(params.rd, cpu.getReg(params.rs1) >> @as(u6, @truncate(cpu.getReg(params.rs2))));
     return next(cpu, inst, cur);
 }
 
 pub fn sra(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].sra;
-    cpu.setReg(params.rd, cpu.getReg(params.rs1) >> @truncate(u6, cpu.getReg(params.rs2)));
+    cpu.setReg(params.rd, cpu.getReg(params.rs1) >> @as(u6, @truncate(cpu.getReg(params.rs2))));
     return next(cpu, inst, cur);
 }
 
@@ -116,26 +117,26 @@ pub fn andi(cpu: *CPU, inst: []Instruction, cur: usize) !void {
 
 pub fn slli(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].slli;
-    cpu.setReg(params.rd, cpu.getReg(params.rs1) << @intCast(u6, params.imm & 0b1111));
+    cpu.setReg(params.rd, cpu.getReg(params.rs1) << @as(u6, @intCast(params.imm & 0b1111)));
     return next(cpu, inst, cur);
 }
 
 pub fn srli(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].srli;
-    cpu.setReg(params.rd, cpu.getReg(params.rs1) >> @intCast(u6, params.imm & 0b1111));
+    cpu.setReg(params.rd, cpu.getReg(params.rs1) >> @as(u6, @intCast(params.imm & 0b1111)));
     return next(cpu, inst, cur);
 }
 
 pub fn srai(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].srai;
-    cpu.setReg(params.rd, cpu.getReg(params.rs1) >> @intCast(u6, params.imm & 0b1111));
+    cpu.setReg(params.rd, cpu.getReg(params.rs1) >> @as(u6, @intCast(params.imm & 0b1111)));
     return next(cpu, inst, cur);
 }
 
 pub fn slti(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].slti;
     // Why @bitCast() & @intCast()? RISC-V manual: "immediates are always sign extended"
-    cpu.setReg(params.rd, if (cpu.getRegSigned(params.rs1) < @intCast(CPU.SXLEN, params.immSigned())) 1 else 0);
+    cpu.setReg(params.rd, if (cpu.getRegSigned(params.rs1) < @as(CPU.SXLEN, @intCast(params.immSigned()))) 1 else 0);
     return next(cpu, inst, cur);
 }
 
@@ -143,7 +144,7 @@ pub fn sltiu(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].sltiu;
     // Explicitly unsigned, so only zero-extend
     // Since this isn't hardware, a simple @intCast() works
-    cpu.setReg(params.rd, if (cpu.getReg(params.rs1) < @intCast(CPU.XLEN, params.imm)) 1 else 0);
+    cpu.setReg(params.rd, if (cpu.getReg(params.rs1) < @as(CPU.XLEN, @intCast(params.imm))) 1 else 0);
     return next(cpu, inst, cur);
 }
 
@@ -175,43 +176,43 @@ pub fn ld(cpu: *CPU, inst: []Instruction, cur: usize) !void {
 
 pub fn lbu(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].lbu;
-    cpu.setReg(params.rd, @intCast(CPU.XLEN, try cpu.getMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), u8, .none)));
+    cpu.setReg(params.rd, @as(CPU.XLEN, @intCast(try cpu.getMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), u8, .none))));
     return next(cpu, inst, cur);
 }
 
 pub fn lhu(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].lhu;
-    cpu.setReg(params.rd, @intCast(CPU.XLEN, try cpu.getMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), u16, .none)));
+    cpu.setReg(params.rd, @as(CPU.XLEN, @intCast(try cpu.getMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), u16, .none))));
     return next(cpu, inst, cur);
 }
 
 pub fn lwu(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].lhu;
-    cpu.setReg(params.rd, @intCast(CPU.XLEN, try cpu.getMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), u32, .none)));
+    cpu.setReg(params.rd, @as(CPU.XLEN, @intCast(try cpu.getMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), u32, .none))));
     return next(cpu, inst, cur);
 }
 
 pub fn sb(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].sb;
-    try cpu.setMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), @truncate(u8, cpu.getReg(params.rs2)));
+    try cpu.setMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), @as(u8, @truncate(cpu.getReg(params.rs2))));
     return next(cpu, inst, cur);
 }
 
 pub fn sh(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].sh;
-    try cpu.setMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), @truncate(u16, cpu.getReg(params.rs2)));
+    try cpu.setMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), @as(u16, @truncate(cpu.getReg(params.rs2))));
     return next(cpu, inst, cur);
 }
 
 pub fn sw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].sw;
-    try cpu.setMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), @truncate(u32, cpu.getReg(params.rs2)));
+    try cpu.setMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), @as(u32, @truncate(cpu.getReg(params.rs2))));
     return next(cpu, inst, cur);
 }
 
 pub fn sd(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].sd;
-    try cpu.setMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), @truncate(u64, cpu.getReg(params.rs2)));
+    try cpu.setMem(cpu.getReg(params.rs1) +% CPU.util.sext(params.immSigned()), @as(u64, @truncate(cpu.getReg(params.rs2))));
     return next(cpu, inst, cur);
 }
 
@@ -219,37 +220,37 @@ pub fn sd(cpu: *CPU, inst: []Instruction, cur: usize) !void {
 
 pub fn beq(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].beq;
-    if (cpu.getReg(params.rs1) == cpu.getReg(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @intCast(CPU.XLEN, params.imm));
+    if (cpu.getReg(params.rs1) == cpu.getReg(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @as(CPU.XLEN, @intCast(params.imm)));
     return next(cpu, inst, cur);
 }
 
 pub fn bne(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].bne;
-    if (cpu.getReg(params.rs1) != cpu.getReg(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @intCast(CPU.XLEN, params.imm));
+    if (cpu.getReg(params.rs1) != cpu.getReg(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @as(CPU.XLEN, @intCast(params.imm)));
     return next(cpu, inst, cur);
 }
 
 pub fn blt(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].blt;
-    if (cpu.getRegSigned(params.rs1) < cpu.getRegSigned(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @intCast(CPU.XLEN, params.imm));
+    if (cpu.getRegSigned(params.rs1) < cpu.getRegSigned(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @as(CPU.XLEN, @intCast(params.imm)));
     return next(cpu, inst, cur);
 }
 
 pub fn bge(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].bge;
-    if (cpu.getRegSigned(params.rs1) > cpu.getRegSigned(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @intCast(CPU.XLEN, params.imm));
+    if (cpu.getRegSigned(params.rs1) > cpu.getRegSigned(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @as(CPU.XLEN, @intCast(params.imm)));
     return next(cpu, inst, cur);
 }
 
 pub fn bltu(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].bltu;
-    if (cpu.getReg(params.rs1) < cpu.getReg(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @intCast(CPU.XLEN, params.imm));
+    if (cpu.getReg(params.rs1) < cpu.getReg(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @as(CPU.XLEN, @intCast(params.imm)));
     return next(cpu, inst, cur);
 }
 
 pub fn bgeu(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].bgeu;
-    if (cpu.getReg(params.rs1) > cpu.getReg(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @intCast(CPU.XLEN, params.imm));
+    if (cpu.getReg(params.rs1) > cpu.getReg(params.rs2)) return goto(cpu, inst, cur, cpu.pc +% @as(CPU.XLEN, @intCast(params.imm)));
     return next(cpu, inst, cur);
 }
 
@@ -258,13 +259,13 @@ pub fn bgeu(cpu: *CPU, inst: []Instruction, cur: usize) !void {
 pub fn jal(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].jal;
     cpu.setReg(params.rd, cpu.pc + 4);
-    return goto(cpu, inst, cur, cpu.pc +% @intCast(CPU.XLEN, params.imm));
+    return goto(cpu, inst, cur, cpu.pc +% @as(CPU.XLEN, @intCast(params.imm)));
 }
 
 pub fn jalr(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].jalr;
     cpu.setReg(params.rd, cpu.pc + 4);
-    return goto(cpu, inst, cur, cpu.getReg(params.rs1) +% @intCast(CPU.XLEN, params.imm));
+    return goto(cpu, inst, cur, cpu.getReg(params.rs1) +% @as(CPU.XLEN, @intCast(params.imm)));
 }
 
 // -- Misc functions --
@@ -285,31 +286,31 @@ pub fn auipc(cpu: *CPU, inst: []Instruction, cur: usize) !void {
 
 pub fn addw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].addw;
-    cpu.setReg(params.rd, CPU.util.sext(@truncate(u32, cpu.getReg(params.rs1)) +% @truncate(u32, cpu.getReg(params.rs2))));
+    cpu.setReg(params.rd, CPU.util.sext(@as(u32, @truncate(cpu.getReg(params.rs1))) +% @as(u32, @truncate(cpu.getReg(params.rs2)))));
     return next(cpu, inst, cur);
 }
 
 pub fn subw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].subw;
-    cpu.setReg(params.rd, CPU.util.sext(@truncate(u32, cpu.getReg(params.rs1)) -% @truncate(u32, cpu.getReg(params.rs2))));
+    cpu.setReg(params.rd, CPU.util.sext(@as(u32, @truncate(cpu.getReg(params.rs1))) -% @as(u32, @truncate(cpu.getReg(params.rs2)))));
     return next(cpu, inst, cur);
 }
 
 pub fn sllw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].sllw;
-    cpu.setReg(params.rd, CPU.util.sext(@truncate(u32, cpu.getReg(params.rs1)) << @truncate(u5, cpu.getReg(params.rs2))));
+    cpu.setReg(params.rd, CPU.util.sext(@as(u32, @truncate(cpu.getReg(params.rs1))) << @as(u5, @truncate(cpu.getReg(params.rs2)))));
     return next(cpu, inst, cur);
 }
 
 pub fn srlw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].srlw;
-    cpu.setReg(params.rd, CPU.util.sext(@truncate(u32, cpu.getReg(params.rs1)) >> @truncate(u5, cpu.getReg(params.rs2))));
+    cpu.setReg(params.rd, CPU.util.sext(@as(u32, @truncate(cpu.getReg(params.rs1))) >> @as(u5, @truncate(cpu.getReg(params.rs2)))));
     return next(cpu, inst, cur);
 }
 
 pub fn sraw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].sraw;
-    cpu.setReg(params.rd, CPU.util.sext(@truncate(u32, cpu.getReg(params.rs1)) >> @truncate(u5, cpu.getReg(params.rs2))));
+    cpu.setReg(params.rd, CPU.util.sext(@as(u32, @truncate(cpu.getReg(params.rs1))) >> @as(u5, @truncate(cpu.getReg(params.rs2)))));
     return next(cpu, inst, cur);
 }
 
@@ -317,25 +318,25 @@ pub fn sraw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
 
 pub fn addiw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].addiw;
-    cpu.setReg(params.rd, CPU.util.sext(@truncate(u32, cpu.getReg(params.rs1)) +% @bitCast(u32, @intCast(i32, params.immSigned()))));
+    cpu.setReg(params.rd, CPU.util.sext(@as(u32, @truncate(cpu.getReg(params.rs1))) +% @as(u32, @bitCast(@as(i32, @intCast(params.immSigned()))))));
     return next(cpu, inst, cur);
 }
 
 pub fn slliw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].slliw;
-    cpu.setReg(params.rd, CPU.util.sext(@truncate(u32, cpu.getReg(params.rs1)) << @truncate(u5, params.shamt)));
+    cpu.setReg(params.rd, CPU.util.sext(@as(u32, @truncate(cpu.getReg(params.rs1))) << @as(u5, @truncate(params.shamt))));
     return next(cpu, inst, cur);
 }
 
 pub fn srliw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].srliw;
-    cpu.setReg(params.rd, CPU.util.sext(@truncate(u32, cpu.getReg(params.rs1)) >> @truncate(u5, params.shamt)));
+    cpu.setReg(params.rd, CPU.util.sext(@as(u32, @truncate(cpu.getReg(params.rs1))) >> @as(u5, @truncate(params.shamt))));
     return next(cpu, inst, cur);
 }
 
 pub fn sraiw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].sraiw;
-    cpu.setReg(params.rd, CPU.util.sext(@truncate(u32, cpu.getReg(params.rs1)) >> @truncate(u5, params.shamt)));
+    cpu.setReg(params.rd, CPU.util.sext(@as(u32, @truncate(cpu.getReg(params.rs1))) >> @as(u5, @truncate(params.shamt))));
     return next(cpu, inst, cur);
 }
 
@@ -343,31 +344,31 @@ pub fn sraiw(cpu: *CPU, inst: []Instruction, cur: usize) !void {
 
 pub fn mul(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].mul;
-    cpu.setReg(params.rd, @intCast(CPU.XLEN, @truncate(u32, cpu.getReg(params.rs1) *% cpu.getReg(params.rs2))));
+    cpu.setReg(params.rd, @as(CPU.XLEN, @intCast(@as(u32, @truncate(cpu.getReg(params.rs1))) *% cpu.getReg(params.rs2))));
     return next(cpu, inst, cur);
 }
 
 pub fn mulh(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].mulh;
-    cpu.setReg(params.rd, (@bitCast(CPU.XLEN, cpu.getRegSigned(params.rs1) *% cpu.getRegSigned(params.rs2)) & 0xFFFFFFFF_00000000) >> 32);
+    cpu.setReg(params.rd, (@as(CPU.XLEN, @bitCast(cpu.getRegSigned(params.rs1) *% cpu.getRegSigned(params.rs2))) & 0xFFFFFFFF_00000000) >> 32);
     return next(cpu, inst, cur);
 }
 
 pub fn mulsu(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].mulsu;
-    cpu.setReg(params.rd, @intCast(CPU.XLEN, ((cpu.getReg(params.rs1) *% cpu.getReg(params.rs2)) & 0xFFFFFFFF_00000000) >> 32));
+    cpu.setReg(params.rd, (@as(CPU.XLEN, @intCast(((cpu.getReg(params.rs1)) *% cpu.getReg(params.rs2)))) & 0xFFFFFFFF_00000000) >> 32);
     return next(cpu, inst, cur);
 }
 
 pub fn mulu(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].mulu;
-    cpu.setReg(params.rd, @intCast(CPU.XLEN, ((cpu.getReg(params.rs1) *% cpu.getReg(params.rs2)) & 0xFFFFFFFF_00000000) >> 32));
+    cpu.setReg(params.rd, (@as(CPU.XLEN, @intCast(((cpu.getReg(params.rs1)) *% cpu.getReg(params.rs2)))) & 0xFFFFFFFF_00000000) >> 32);
     return next(cpu, inst, cur);
 }
 
 pub fn div(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].div;
-    cpu.setReg(params.rd, @bitCast(CPU.XLEN, try std.math.divFloor(i64, cpu.getRegSigned(params.rs1), cpu.getRegSigned(params.rs2))));
+    cpu.setReg(params.rd, @as(CPU.XLEN, @bitCast(try std.math.divFloor(i64, cpu.getRegSigned(params.rs1), cpu.getRegSigned(params.rs2)))));
     return next(cpu, inst, cur);
 }
 
@@ -379,7 +380,7 @@ pub fn divu(cpu: *CPU, inst: []Instruction, cur: usize) !void {
 
 pub fn rem(cpu: *CPU, inst: []Instruction, cur: usize) !void {
     const params = inst[cur].rem;
-    cpu.setReg(params.rd, @bitCast(CPU.XLEN, try std.math.rem(i64, cpu.getRegSigned(params.rs1), cpu.getRegSigned(params.rs2))));
+    cpu.setReg(params.rd, @as(CPU.XLEN, @bitCast(try std.math.rem(i64, cpu.getRegSigned(params.rs1), cpu.getRegSigned(params.rs2)))));
     return next(cpu, inst, cur);
 }
 
