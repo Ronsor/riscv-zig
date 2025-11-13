@@ -9,7 +9,7 @@ pub const RType = struct {
     rd: u5,
 
     pub fn decode(raw: u32) RType {
-        return .{ .rs2 = @intCast(u5, (raw >> 20) & 0x1f), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rd = @intCast(u5, (raw >> 7) & 0x1f) };
+        return .{ .rs2 = @as(u5, @intCast((raw >> 20) & 0x1f)), .rs1 = @as(u5, @intCast((raw >> 15) & 0x1f)), .rd = @as(u5, @intCast((raw >> 7) & 0x1f)) };
     }
 };
 
@@ -19,11 +19,11 @@ pub const IType = struct {
     rd: u5,
 
     pub fn decode(raw: u32) IType {
-        return .{ .imm = @intCast(u12, (raw >> 20)), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rd = @intCast(u5, (raw >> 7) & 0x1f) };
+        return .{ .imm = @as(u12, @intCast((raw >> 20))), .rs1 = @as(u5, @intCast((raw >> 15) & 0x1f)), .rd = @as(u5, @intCast((raw >> 7) & 0x1f)) };
     }
 
     pub inline fn immSigned(self: IType) i12 {
-        return @bitCast(i12, self.imm);
+        return @as(i32, @bitCast(self.imm));
     }
 };
 
@@ -33,11 +33,11 @@ pub const SType = struct {
     rs2: u5,
 
     pub fn decode(raw: u32) SType {
-        return .{ .imm = @intCast(u12, ((raw >> 20) & 0xfe0) | ((raw >> 7) & 0x1f)), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rs2 = @intCast(u5, (raw >> 20) & 0x1f) };
+        return .{ .imm = @as(u12, @intCast(((raw >> 20) & 0xfe0) | ((raw >> 7) & 0x1f))), .rs1 = @as(u5, @intCast((raw >> 15) & 0x1f)), .rs2 = @as(u5, @intCast((raw >> 20) & 0x1f)) };
     }
 
     pub inline fn immSigned(self: SType) i12 {
-        return @bitCast(i12, self.imm);
+        return @as(i32, @bitCast(self.imm));
     }
 };
 
@@ -48,10 +48,9 @@ pub const BType = struct {
 
     pub fn decode(raw: u32) BType {
         return .{
-            .imm = @intCast(u12, ((raw & 0x8000_0000) >> 19) | ((raw & 0x7e00_0000) >> 20) |
-                ((raw & 0x0000_0f00) >> 7) | ((raw & 0x0000_0080) << 4)),
-            .rs1 = @intCast(u5, (raw >> 15) & 0x1f),
-            .rs2 = @intCast(u5, (raw >> 20) & 0x1f),
+            .imm = @as(u12, @intCast(((raw & 0x8000_0000) >> 19) | ((raw & 0x7e00_0000) >> 20) | ((raw & 0x0000_0f00) >> 7) | ((raw & 0x0000_0080) << 4))),
+            .rs1 = @as(u5, @intCast((raw >> 15) & 0x1f)),
+            .rs2 = @as(u5, @intCast((raw >> 20) & 0x1f)),
         };
     }
 };
@@ -62,9 +61,9 @@ pub const JType = struct {
 
     pub fn decode(raw: u32) JType {
         return .{
-            .imm = @intCast(u20, ((raw & 0x8000_0000) >> 11) | ((raw & 0x7fe0_0000) >> 20) |
-                ((raw & 0x0010_0000) >> 9) | (raw & 0x000f_f000)),
-            .rd = @intCast(u5, (raw >> 7) & 0x1f),
+            .imm = @as(u20, @intCast(((raw & 0x8000_0000) >> 11) | ((raw & 0x7fe0_0000) >> 20) |
+                ((raw & 0x0010_0000) >> 9) | (raw & 0x000f_f000))),
+            .rd = @as(u5, @intCast((raw >> 7) & 0x1f)),
         };
     }
 };
@@ -74,7 +73,7 @@ pub const UType = struct {
     rd: u5,
 
     pub fn decode(raw: u32) UType {
-        return .{ .imm = raw & 0xfffff000, .rd = @intCast(u5, (raw >> 7) & 0x1f) };
+        return .{ .imm = raw & 0xfffff000, .rd = @as(u5, @intCast((raw >> 7) & 0x1f)) };
     }
 };
 
@@ -84,7 +83,7 @@ pub const ShiftType = struct {
     rd: u5,
 
     pub fn decode(raw: u32) ShiftType {
-        return .{ .shamt = @intCast(u6, (raw >> 20) & 0x3f), .rs1 = @intCast(u5, (raw >> 15) & 0x1f), .rd = @intCast(u5, (raw >> 7) & 0x1f) };
+        return .{ .shamt = @as(u6, @intCast((raw >> 20) & 0x3f)), .rs1 = @as(u5, @intCast((raw >> 15) & 0x1f)), .rd = @as(u5, @intCast((raw >> 7) & 0x1f)) };
     }
 };
 
@@ -163,7 +162,7 @@ pub const Instruction = union(enum(u8)) {
     }
 
     pub fn decode32(raw: u32) anyerror!Instruction {
-        var opcode = (raw >> 2) & 0b11111;
+        const opcode = (raw >> 2) & 0b11111;
         return switch (opcode) {
             0b01100 => decodeAluOp(raw),
             0b00100 => decodeAluImmOp(raw),
@@ -182,7 +181,7 @@ pub const Instruction = union(enum(u8)) {
     }
 
     fn decodeAluOp(raw: u32) !Instruction {
-        var funct7and3 = tup(raw >> 25, (raw >> 12) & 0b111);
+        const funct7and3 = tup(raw >> 25, (raw >> 12) & 0b111);
         return switch (funct7and3) {
             tup(0b0000000, 0b000) => init(.add, RType.decode(raw)),
             tup(0b0100000, 0b000) => init(.sub, RType.decode(raw)),
@@ -207,7 +206,7 @@ pub const Instruction = union(enum(u8)) {
     }
 
     fn decodeAluImmOp(raw: u32) !Instruction {
-        var funct3 = (raw >> 12) & 0b111;
+        const funct3 = (raw >> 12) & 0b111;
         return switch (funct3) {
             0b000 => init(.addi, IType.decode(raw)),
             0b001 => init(.slli, IType.decode(raw)),
@@ -226,7 +225,7 @@ pub const Instruction = union(enum(u8)) {
     }
 
     fn decodeLoad(raw: u32) !Instruction {
-        var funct3 = (raw >> 12) & 0b111;
+        const funct3 = (raw >> 12) & 0b111;
         return switch (funct3) {
             0b000 => init(.lb, IType.decode(raw)),
             0b001 => init(.lh, IType.decode(raw)),
@@ -240,7 +239,7 @@ pub const Instruction = union(enum(u8)) {
     }
 
     fn decodeStore(raw: u32) !Instruction {
-        var funct3 = (raw >> 12) & 0b111;
+        const funct3 = (raw >> 12) & 0b111;
         return switch (funct3) {
             0b000 => init(.sb, SType.decode(raw)),
             0b001 => init(.sh, SType.decode(raw)),
@@ -251,7 +250,7 @@ pub const Instruction = union(enum(u8)) {
     }
 
     fn decodeBranch(raw: u32) !Instruction {
-        var funct3 = (raw >> 12) & 0b111;
+        const funct3 = (raw >> 12) & 0b111;
         return switch (funct3) {
             0b000 => init(.beq, BType.decode(raw)),
             0b001 => init(.bne, BType.decode(raw)),
@@ -264,7 +263,7 @@ pub const Instruction = union(enum(u8)) {
     }
 
     fn decodeAluOp32(raw: u32) !Instruction {
-        var funct7and3 = tup(raw >> 25, (raw >> 12) & 0b111);
+        const funct7and3 = tup(raw >> 25, (raw >> 12) & 0b111);
         return switch (funct7and3) {
             tup(0b0000000, 0b000) => init(.addw, RType.decode(raw)),
             tup(0b0100000, 0b000) => init(.subw, RType.decode(raw)),
@@ -276,8 +275,8 @@ pub const Instruction = union(enum(u8)) {
     }
 
     fn decodeAluImmOp32(raw: u32) DecoderError!Instruction {
-        var funct3 = (raw >> 12) & 0b111;
-        var funct7and3 = tup(raw >> 25, (raw >> 12) & 0b111);
+        const funct3 = (raw >> 12) & 0b111;
+        const funct7and3 = tup(raw >> 25, (raw >> 12) & 0b111);
         return switch (funct3) {
             0b000 => init(.addiw, IType.decode(raw)),
             else => switch (funct7and3) {
